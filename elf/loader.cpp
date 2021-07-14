@@ -72,18 +72,28 @@ bool ELFLoader::loadInterpreter(const char *interpreter) {
 }
 
 unsigned long ELFLoader::loadSegments(const ELFIO::elfio &reader) {
-    auto minElement = std::min_element(
+    std::vector<ELFIO::segment *> loads;
+
+    std::copy_if(
             reader.segments.begin(),
             reader.segments.end(),
+            std::back_inserter(loads),
+            [](const auto &i){
+                return i->get_type() == PT_LOAD;
+            });
+
+    auto minElement = std::min_element(
+            loads.begin(),
+            loads.end(),
             [](const auto &i, const auto &j) {
                 return i->get_virtual_address() < j->get_virtual_address();
             });
 
     auto maxElement = std::max_element(
-            reader.segments.begin(),
-            reader.segments.end(),
+            loads.begin(),
+            loads.end(),
             [](const auto &i, const auto &j) {
-                return i->get_virtual_address() > j->get_virtual_address();
+                return i->get_virtual_address() < j->get_virtual_address();
             });
 
     bool dyn = reader.get_type() == ET_DYN;
@@ -106,17 +116,14 @@ unsigned long ELFLoader::loadSegments(const ELFIO::elfio &reader) {
 
     munmap(base, maxVA - minVA);
 
-    LOG_INFO("segment base: 0x%lx[0x%lx-0x%lx]", base, minVA, maxVA);
+    LOG_INFO("segment base: 0x%lx[0x%lx]", base, maxVA - minVA);
 
-    for (const auto &segment : reader.segments) {
-        if (segment->get_type() != PT_LOAD)
-            continue;
-
+    for (const auto &segment : loads) {
         unsigned long offset = segment->get_virtual_address() & (mPagesize - 1);
         unsigned long start = (dyn ? (unsigned long)base : 0) + truncatePage(segment->get_virtual_address());
         unsigned long size = roundPage(segment->get_memory_size() + offset);
 
-        LOG_INFO("segment at: 0x%lx[0x%lx]", start, size);
+        LOG_INFO("segment: 0x%lx[0x%lx]", start, size);
 
         void *p = mmap(
                 (void *)start,
