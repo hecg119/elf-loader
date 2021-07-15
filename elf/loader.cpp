@@ -116,7 +116,7 @@ unsigned long ELFLoader::loadSegments(const ELFIO::elfio &reader) {
 
     munmap(base, maxVA - minVA);
 
-    LOG_INFO("segment base: 0x%lx[0x%lx]", base, maxVA - minVA);
+    LOG_INFO("segment base: %p[0x%lx]", base, maxVA - minVA);
 
     for (const auto &segment : loads) {
         unsigned long offset = segment->get_virtual_address() & (mPagesize - 1);
@@ -156,7 +156,7 @@ unsigned long ELFLoader::loadSegments(const ELFIO::elfio &reader) {
     return (unsigned long)base;
 }
 
-void ELFLoader::jump(int argc, char **argv) {
+void ELFLoader::jump(int argc, char **argv, char **env) {
     std::ifstream stream = std::ifstream("/proc/self/auxv");
     std::vector<char> auxiliary((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
 
@@ -166,23 +166,24 @@ void ELFLoader::jump(int argc, char **argv) {
                 av->a_un.a_val = mProgramHeader;
                 break;
 
+            case AT_PHENT:
+                av->a_un.a_val = mProgramHeaderSize;
+                break;
+
             case AT_PHNUM:
                 av->a_un.a_val = mProgramHeaderNum;
                 break;
 
-            case AT_PHENT:
-                av->a_un.a_val = mProgramHeaderSize;
+            case AT_BASE:
+                av->a_un.a_val = mInterpreterBase ? mInterpreterBase : 0;
                 break;
 
             case AT_ENTRY:
                 av->a_un.a_val = mProgramEntry;
                 break;
 
-            case AT_BASE:
-                if (mInterpreterBase) {
-                    av->a_un.a_val = mInterpreterBase;
-                }
-
+            case AT_EXECFN:
+                av->a_un.a_val = (unsigned long)argv[0];
                 break;
         }
     }
@@ -200,9 +201,13 @@ void ELFLoader::jump(int argc, char **argv) {
         *(char **)p++ = argv[i];
 
     *(char **)p++ = nullptr;
+
+    for (char ** i = env; *i; i++)
+        *(char **)p++ = *i;
+
     *(char **)p++ = nullptr;
 
     memcpy(p, auxiliary.data(), auxiliary.size());
 
-    asm volatile("mov %0, %%rsp; jmp *%1;" :: "m"(stack), "a"(entry));
+    asm volatile("mov %0, %%rsp; xor %%rdx, %%rdx; jmp *%1;" :: "m"(stack), "a"(entry));
 }

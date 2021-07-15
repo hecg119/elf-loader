@@ -12,7 +12,7 @@ public:
     bool load(const std::string& file);
 
 public:
-    void jump(int argc, char **argv);
+    void jump(int argc, char **argv, char **env);
 
 private:
     bool loadInterpreter(const char *interpreter);
@@ -27,14 +27,14 @@ private:
 private:
     unsigned long mPagesize;
 
-private:
+public:
     unsigned long mProgramBase{};
     unsigned long mProgramEntry{};
     unsigned long mProgramHeader{};
     unsigned long mProgramHeaderNum{};
     unsigned long mProgramHeaderSize{};
 
-private:
+public:
     unsigned long mInterpreterBase{};
     unsigned long mInterpreterEntry{};
 };
