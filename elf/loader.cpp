@@ -188,9 +188,7 @@ void ELFLoader::jump(int argc, char **argv, char **env) {
         }
     }
 
-    unsigned char buffer[4096] = {};
-
-    unsigned char *stack = buffer;
+    unsigned char stack[4096] = {};
     unsigned long entry = mInterpreterEntry ? mInterpreterEntry : mProgramEntry;
 
     auto *p = (unsigned long *)stack;
@@ -209,5 +207,5 @@ void ELFLoader::jump(int argc, char **argv, char **env) {
 
     memcpy(p, auxiliary.data(), auxiliary.size());
 
-    asm volatile("mov %0, %%rsp; xor %%rdx, %%rdx; jmp *%1;" :: "m"(stack), "a"(entry));
+    asm volatile("mov %0, %%rsp; xor %%rdx, %%rdx; jmp *%1;" :: "r"(stack), "a"(entry));
 }
