@@ -4,6 +4,8 @@
 #include <common/log.h>
 #include <elf.h>
 
+constexpr auto STACK_ALIGN = 16;
+
 ELFLoader::ELFLoader() {
     mPagesize = sysconf(_SC_PAGESIZE);
 }
@@ -188,10 +190,11 @@ void ELFLoader::jump(int argc, char **argv, char **env) {
         }
     }
 
-    unsigned char stack[4096] = {};
+    unsigned char buffer[4096] = {};
     unsigned long entry = mInterpreterEntry ? mInterpreterEntry : mProgramEntry;
 
-    auto *p = (unsigned long *)stack;
+    auto stack = (unsigned char *)(((unsigned long)buffer + STACK_ALIGN - 1) & ~(STACK_ALIGN - 1));
+    auto p = (unsigned long *)stack;
 
     *(int *)p++ = argc;
 
