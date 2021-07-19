@@ -5,6 +5,7 @@
 #include <elf.h>
 
 constexpr auto STACK_ALIGN = 16;
+constexpr auto AV_PATH = "/proc/self/auxv";
 
 ELFLoader::ELFLoader() {
     mPagesize = sysconf(_SC_PAGESIZE);
@@ -159,33 +160,33 @@ unsigned long ELFLoader::loadSegments(const ELFIO::elfio &reader) {
 }
 
 void ELFLoader::jump(int argc, char **argv, char **env) {
-    std::ifstream stream = std::ifstream("/proc/self/auxv");
-    std::vector<char> auxiliary((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
+    std::ifstream stream = std::ifstream(AV_PATH);
+    std::vector<char> av((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
 
-    for (auto *av = (Elf64_auxv_t *)auxiliary.data(); av->a_type != AT_NULL; av++) {
-        switch (av->a_type) {
+    for (auto *i = (Elf64_auxv_t *)av.data(); i->a_type != AT_NULL; i++) {
+        switch (i->a_type) {
             case AT_PHDR:
-                av->a_un.a_val = mProgramHeader;
+                i->a_un.a_val = mProgramHeader;
                 break;
 
             case AT_PHENT:
-                av->a_un.a_val = mProgramHeaderSize;
+                i->a_un.a_val = mProgramHeaderSize;
                 break;
 
             case AT_PHNUM:
-                av->a_un.a_val = mProgramHeaderNum;
+                i->a_un.a_val = mProgramHeaderNum;
                 break;
 
             case AT_BASE:
-                av->a_un.a_val = mInterpreterBase ? mInterpreterBase : 0;
+                i->a_un.a_val = mInterpreterBase ? mInterpreterBase : 0;
                 break;
 
             case AT_ENTRY:
-                av->a_un.a_val = mProgramEntry;
+                i->a_un.a_val = mProgramEntry;
                 break;
 
             case AT_EXECFN:
-                av->a_un.a_val = (unsigned long)argv[0];
+                i->a_un.a_val = (unsigned long)argv[0];
                 break;
         }
     }
@@ -208,7 +209,7 @@ void ELFLoader::jump(int argc, char **argv, char **env) {
 
     *(char **)p++ = nullptr;
 
-    memcpy(p, auxiliary.data(), auxiliary.size());
+    memcpy(p, av.data(), av.size());
 
     asm volatile("mov %0, %%rsp; xor %%rdx, %%rdx; jmp *%1;" :: "r"(stack), "a"(entry));
 }
